@@ -14,10 +14,10 @@ const run = (text: string, bold = false, size = 24) => new TextRun({ text, bold,
 const p = (children: TextRun[], align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT) =>
   new Paragraph({ children, alignment: align });
 
-function cell(children: Paragraph[], width: number, opts: { span?: number; fill?: string; center?: boolean } = {}) {
+function cell(children: Paragraph[], width: number | undefined = 0, opts: { span?: number; fill?: string; center?: boolean } = {}) {
   return new TableCell({
     children, borders, margins: m, columnSpan: opts.span,
-    width: { size: width, type: WidthType.DXA },
+    width: { size: width ?? 0, type: WidthType.DXA },
     verticalAlign: VerticalAlign.CENTER,
     shading: opts.fill ? { fill: opts.fill, type: ShadingType.CLEAR, color: "auto" } : undefined,
   });
@@ -45,7 +45,7 @@ export async function gerarDocx(ata: Ata): Promise<Blob> {
       header("1. DADOS GERAIS DA REUNIÃO", c3),
       new TableRow({ children: [cell([label("ATA", ata.numeroAta)], W, { span: 3 })] }),
       new TableRow({ children: [
-        cell([label("Solicitante:", ata.solicitante)], c3[0] + c3[1], { span: 2 }),
+        cell([label("Solicitante:", ata.solicitante)], c3[0]! + c3[1]!, { span: 2 }),
         cell([label("Elaboração da Ata:", ata.elaboracao)], c3[2]),
       ] }),
       new TableRow({ children: [
