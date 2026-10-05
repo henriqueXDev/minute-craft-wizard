@@ -62,7 +62,7 @@ export async function gerarDocx(ata: Ata): Promise<Blob> {
     width: { size: W, type: WidthType.DXA }, columnWidths: c4,
     rows: [
       header("2. PARTICIPANTES", c4),
-      new TableRow({ children: ["Nome", "Órgão", "Email", "Assinatura"].map((h, i) => cell([p([run(h, true)], AlignmentType.CENTER)], c4[i])) }),
+      new TableRow({ children: ["Nome", "Órgão", "Email", "Assinatura"].map((h, i) => cell([p([run(h, true)], AlignmentType.CENTER)], c4[i]!)) }),
       ...ata.participantes.map((x) => new TableRow({ children: [
         cell([p([run(x.nome)])], c4[0]),
         cell([p([run(x.orgao)], AlignmentType.CENTER)], c4[1]),
@@ -99,7 +99,7 @@ export async function gerarDocx(ata: Ata): Promise<Blob> {
     width: { size: W, type: WidthType.DXA }, columnWidths: c5,
     rows: [
       new TableRow({ tableHeader: true, children: [cell([p([run("5. ENCAMINHAMENTOS", true, 28)])], W, { span: 5, fill: "D9D9D9" })] }),
-      new TableRow({ children: ["Nº", "Tarefa", "Prazo", "Responsável", "Situação"].map((h, i) => cell([p([run(h, true)], AlignmentType.CENTER)], c5[i])) }),
+      new TableRow({ children: ["Nº", "Tarefa", "Prazo", "Responsável", "Situação"].map((h, i) => cell([p([run(h, true)], AlignmentType.CENTER)], c5[i]!)) }),
       ...ata.encaminhamentos.map((e, i) => new TableRow({ children: [
         cell([p([run(`${i + 1}.`)])], c5[0]),
         cell([p([run(e.tarefa)])], c5[1]),

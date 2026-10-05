@@ -18,7 +18,7 @@ export const gerarAta = createServerFn({ method: "POST" })
     return { texto: d.texto.slice(0, 400_000), observacoes: (d.observacoes ?? "").slice(0, 4000) };
   })
   .handler(async ({ data }): Promise<{ ata?: Ata; erro?: string }> => {
-    const key = process.env.LOVABLE_API_KEY;
+    const key = process.env["LOVABLE_API_KEY"];
     if (!key) return { erro: "Chave de IA não configurada." };
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
