@@ -11,15 +11,16 @@ const borders = { top: b, bottom: b, left: b, right: b };
 const m = { top: 60, bottom: 60, left: 120, right: 120 };
 
 const run = (text: string, bold = false, size = 24) => new TextRun({ text, bold, font: FONT, size });
-const p = (children: TextRun[], align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT) =>
+const p = (children: (TextRun | ImageRun)[], align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT) =>
   new Paragraph({ children, alignment: align });
 
 function cell(children: Paragraph[], width: number | undefined = 0, opts: { span?: number; fill?: string; center?: boolean } = {}) {
   return new TableCell({
-    children, borders, margins: m, columnSpan: opts.span,
+    children, borders, margins: m,
+    ...(opts.span ? { columnSpan: opts.span } : {}),
     width: { size: width ?? 0, type: WidthType.DXA },
     verticalAlign: VerticalAlign.CENTER,
-    shading: opts.fill ? { fill: opts.fill, type: ShadingType.CLEAR, color: "auto" } : undefined,
+    ...(opts.fill ? { shading: { fill: opts.fill, type: ShadingType.CLEAR, color: "auto" } } : {}),
   });
 }
 const label = (l: string, v: string) => p([run(l, true), run(" " + (v || ""))]);
