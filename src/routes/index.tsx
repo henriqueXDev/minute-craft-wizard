@@ -19,6 +19,10 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+function tam(b: number) {
+  return b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB` : `${(b / 1024).toFixed(0)} KB`;
+}
+
 function Index() {
   const [file, setFile] = useState<File | null>(null);
   const [obs, setObs] = useState("");
@@ -65,6 +69,7 @@ function Index() {
 
   const set = <K extends keyof Ata>(k: K, v: Ata[K]) => ata && setAta({ ...ata, [k]: v });
   const busy = status !== "idle" && status !== "pronto";
+  const acima = !!file && file.size > 500 * 1024 * 1024;
   function baixarTransc() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([transc], { type: "text/plain;charset=utf-8" }));
@@ -89,6 +94,7 @@ function Index() {
           <div>
             <h2 className="text-2xl font-semibold">1. Envie a transcrição</h2>
             <p className="mt-1 text-sm text-muted-foreground">PDF, DOC, DOCX, TXT — ou áudio/vídeo (MP3, M4A, WAV, MP4, MOV, WEBM).</p>
+            <p className="mt-1 text-xs text-muted-foreground">Limite de cerca de 500 MB ou 3 horas por arquivo. Reuniões longas são transcritas em partes, uma de cada vez.</p>
           </div>
           <label
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -98,13 +104,18 @@ function Index() {
           >
             <input type="file" accept=".pdf,.doc,.docx,.txt,audio/*,video/*,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             <span className="font-serif text-lg">{file ? file.name : "Arraste o arquivo aqui"}</span>
-            <span className="mt-1 text-xs text-muted-foreground">{file ? `${(file.size / 1024).toFixed(0)} KB — clique para trocar` : "ou clique para escolher"}</span>
+            <span className="mt-1 text-xs text-muted-foreground">{file ? `${tam(file.size)} — clique para trocar` : "ou clique para escolher"}</span>
           </label>
+          {file && file.size > 500 * 1024 * 1024 && (
+            <p className="rounded-sm border border-destructive/40 bg-paper p-3 text-sm text-destructive">
+              Este arquivo tem {tam(file.size)}, acima do limite de cerca de 500 MB. Envie um trecho mais curto ou um arquivo menor.
+            </p>
+          )}
           <div>
             <label className="text-sm font-medium">Informações extras (opcional)</label>
             <textarea className="field mt-1 h-24 resize-none" placeholder="Ex: ATA 04/2026, elaborada por Walayna Abreu, local MEET" value={obs} onChange={(e) => setObs(e.target.value)} />
           </div>
-          <button className="btn-primary w-full" disabled={!file || busy} onClick={converter}>
+          <button className="btn-primary w-full" disabled={!file || busy || acima} onClick={converter}>
             {status === "lendo" ? "Lendo arquivo…" : status === "audio" ? "Extraindo áudio…" : status === "transcrevendo" ? `Transcrevendo (${prog})…` : status === "gerando" ? "Redigindo a ata…" : "Gerar ata"}
           </button>
           {erro && <p className="rounded-sm border border-destructive/40 bg-paper p-3 text-sm text-destructive">{erro}</p>}
