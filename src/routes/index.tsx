@@ -2,13 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { gerarAta } from "@/lib/ata.functions";
 import { extrairTexto } from "@/lib/extract";
+import { isMidia, extrairAudio, transcreverPartes } from "@/lib/audio";
 import type { Ata } from "@/lib/ata-types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Gerador de Atas — Transcrição para Ata DTIS" },
-      { name: "description", content: "Envie a transcrição em PDF, DOC ou TXT e baixe a ata pronta em Word no modelo oficial." },
+      { name: "description", content: "Envie a transcrição (PDF, DOC, TXT) ou a gravação em áudio/vídeo e baixe a ata pronta em Word no modelo oficial." },
       { property: "og:title", content: "Gerador de Atas — Transcrição para Ata DTIS" },
       { property: "og:description", content: "Envie a transcrição e baixe a ata pronta em Word." },
       { property: "og:type", content: "website" },
@@ -21,17 +22,28 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [file, setFile] = useState<File | null>(null);
   const [obs, setObs] = useState("");
-  const [status, setStatus] = useState<"idle" | "lendo" | "gerando" | "pronto">("idle");
+  const [status, setStatus] = useState<"idle" | "lendo" | "audio" | "transcrevendo" | "gerando" | "pronto">("idle");
+  const [prog, setProg] = useState("");
+  const [transc, setTransc] = useState("");
   const [erro, setErro] = useState("");
   const [ata, setAta] = useState<Ata | null>(null);
   const [drag, setDrag] = useState(false);
 
   async function converter() {
     if (!file) return;
-    setErro(""); setAta(null);
+    setErro(""); setAta(null); setTransc("");
     try {
-      setStatus("lendo");
-      const texto = await extrairTexto(file);
+      let texto: string;
+      if (isMidia(file)) {
+        setStatus("audio");
+        const partes = await extrairAudio(file);
+        setStatus("transcrevendo");
+        texto = await transcreverPartes(partes, (i, n) => setProg(`parte ${i} de ${n}`));
+      } else {
+        setStatus("lendo");
+        texto = await extrairTexto(file);
+      }
+      setTransc(texto);
       setStatus("gerando");
       const r = await gerarAta({ data: { texto, observacoes: obs } });
       if (r.erro || !r.ata) throw new Error(r.erro || "Falha ao gerar.");
@@ -52,7 +64,12 @@ function Index() {
   }
 
   const set = <K extends keyof Ata>(k: K, v: Ata[K]) => ata && setAta({ ...ata, [k]: v });
-  const busy = status === "lendo" || status === "gerando";
+  const busy = status !== "idle" && status !== "pronto";
+  function baixarTransc() {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([transc], { type: "text/plain;charset=utf-8" }));
+    a.download = "transcricao.txt"; a.click();
+  }
 
   return (
     <div className="min-h-screen">
@@ -71,7 +88,7 @@ function Index() {
         <section className="space-y-5">
           <div>
             <h2 className="text-2xl font-semibold">1. Envie a transcrição</h2>
-            <p className="mt-1 text-sm text-muted-foreground">PDF, DOC, DOCX ou TXT.</p>
+            <p className="mt-1 text-sm text-muted-foreground">PDF, DOC, DOCX, TXT — ou áudio/vídeo (MP3, M4A, WAV, MP4, MOV, WEBM).</p>
           </div>
           <label
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -79,7 +96,7 @@ function Index() {
             onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
             className={`flex cursor-pointer flex-col items-center justify-center rounded-sm border-2 border-dashed px-4 py-10 text-center transition ${drag ? "border-primary bg-secondary" : "border-border bg-card hover:bg-secondary"}`}
           >
-            <input type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <input type="file" accept=".pdf,.doc,.docx,.txt,audio/*,video/*,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             <span className="font-serif text-lg">{file ? file.name : "Arraste o arquivo aqui"}</span>
             <span className="mt-1 text-xs text-muted-foreground">{file ? `${(file.size / 1024).toFixed(0)} KB — clique para trocar` : "ou clique para escolher"}</span>
           </label>
@@ -88,7 +105,7 @@ function Index() {
             <textarea className="field mt-1 h-24 resize-none" placeholder="Ex: ATA 04/2026, elaborada por Walayna Abreu, local MEET" value={obs} onChange={(e) => setObs(e.target.value)} />
           </div>
           <button className="btn-primary w-full" disabled={!file || busy} onClick={converter}>
-            {status === "lendo" ? "Lendo arquivo…" : status === "gerando" ? "Redigindo a ata…" : "Gerar ata"}
+            {status === "lendo" ? "Lendo arquivo…" : status === "audio" ? "Extraindo áudio…" : status === "transcrevendo" ? `Transcrevendo (${prog})…` : status === "gerando" ? "Redigindo a ata…" : "Gerar ata"}
           </button>
           {erro && <p className="rounded-sm border border-destructive/40 bg-paper p-3 text-sm text-destructive">{erro}</p>}
           {ata && (
@@ -102,6 +119,7 @@ function Index() {
                 </div>
               ))}
               <button className="btn-primary w-full" onClick={baixar}>Baixar ata em Word</button>
+              {transc && <button className="w-full rounded-sm border border-border bg-card px-4 py-2 text-sm hover:bg-secondary" onClick={baixarTransc}>Baixar transcrição (.txt)</button>}
             </div>
           )}
         </section>

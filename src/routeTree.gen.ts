@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTranscreverRouteImport } from './routes/api/transcrever'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTranscreverRoute = ApiTranscreverRouteImport.update({
+  id: '/api/transcrever',
+  path: '/api/transcrever',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/transcrever': typeof ApiTranscreverRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/transcrever': typeof ApiTranscreverRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/transcrever': typeof ApiTranscreverRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/transcrever'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/transcrever'
+  id: '__root__' | '/' | '/api/transcrever'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiTranscreverRoute: typeof ApiTranscreverRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/transcrever': {
+      id: '/api/transcrever'
+      path: '/api/transcrever'
+      fullPath: '/api/transcrever'
+      preLoaderRoute: typeof ApiTranscreverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiTranscreverRoute: ApiTranscreverRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
