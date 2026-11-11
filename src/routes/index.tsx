@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gerarAta } from "@/lib/ata.functions";
 import { extrairTexto } from "@/lib/extract";
 import { isMidia, extrairAudio, transcreverPartes } from "@/lib/audio";
@@ -26,10 +26,34 @@ function tam(b: number) {
 // Cache em memória: evita repetir transcrição/geração para o mesmo arquivo e mesmas informações.
 const cacheTransc = new Map<string, string>();
 const cacheAta = new Map<string, Ata>();
+const LS = "atas-cache-v1";
+function salvarCache() {
+  try {
+    localStorage.setItem(LS, JSON.stringify({ t: [...cacheTransc], a: [...cacheAta] }));
+  } catch {
+    // armazenamento cheio: mantém só em memória
+  }
+}
+function carregarCache() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LS) || "null");
+    if (!d) return;
+    for (const [k, v] of d.t ?? []) cacheTransc.set(k, v);
+    for (const [k, v] of d.a ?? []) cacheAta.set(k, v);
+  } catch {}
+}
 const chaveArquivo = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
 function Index() {
   const rodando = useRef(false);
+  const [salvos, setSalvos] = useState(0);
+  useEffect(() => { carregarCache(); setSalvos(cacheAta.size + cacheTransc.size); }, []);
+  function apagarDados() {
+    if (!confirm("Apagar todas as atas e transcrições salvas neste dispositivo?")) return;
+    cacheTransc.clear(); cacheAta.clear();
+    try { localStorage.removeItem(LS); } catch {}
+    setSalvos(0);
+  }
   const [file, setFile] = useState<File | null>(null);
   const [obs, setObs] = useState("");
   const [status, setStatus] = useState<"idle" | "lendo" | "audio" | "transcrevendo" | "gerando" | "pronto">("idle");
@@ -57,7 +81,7 @@ function Index() {
         setStatus("lendo");
         texto = await extrairTexto(file);
       }
-      cacheTransc.set(kf, texto);
+      cacheTransc.set(kf, texto); salvarCache(); setSalvos(cacheAta.size + cacheTransc.size);
       setTransc(texto);
       const ka = `${kf}|${obs.trim()}`;
       const salva = cacheAta.get(ka);
@@ -65,7 +89,7 @@ function Index() {
       setStatus("gerando");
       const r = await gerarAta({ data: { texto, observacoes: obs } });
       if (r.erro || !r.ata) throw new Error(r.erro || "Falha ao gerar.");
-      cacheAta.set(ka, r.ata);
+      cacheAta.set(ka, r.ata); salvarCache(); setSalvos(cacheAta.size + cacheTransc.size);
       setAta(r.ata); setStatus("pronto");
     } catch (e: any) {
       setErro(e?.message ?? "Erro inesperado."); setStatus("idle");
@@ -135,6 +159,12 @@ function Index() {
           <button className="btn-primary w-full" disabled={!file || busy || acima} onClick={converter}>
             {status === "lendo" ? "Lendo arquivo…" : status === "audio" ? "Extraindo áudio…" : status === "transcrevendo" ? `Transcrevendo (${prog})…` : status === "gerando" ? "Redigindo a ata…" : "Gerar ata"}
           </button>
+          <div className="rounded-sm border border-border bg-card p-3 text-xs text-muted-foreground">
+            As atas e transcrições geradas ficam salvas neste dispositivo (neste navegador) para não gastar créditos ao repetir.
+            {salvos > 0 && (
+              <button className="ml-1 font-medium text-destructive underline" onClick={apagarDados}>Apagar dados salvos</button>
+            )}
+          </div>
           {erro && <p className="rounded-sm border border-destructive/40 bg-paper p-3 text-sm text-destructive">{erro}</p>}
           {ata && (
             <div className="space-y-3 border-t border-border pt-5">
