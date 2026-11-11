@@ -3,8 +3,13 @@ export async function extrairTexto(file: File): Promise<string> {
   if (name.endsWith(".txt") || file.type === "text/plain") return file.text();
 
   if (name.endsWith(".pdf")) {
-    const pdfjs = await import("pdfjs-dist");
-    const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+    if (!(Uint8Array.prototype as any).toHex) {
+      (Uint8Array.prototype as any).toHex = function (this: Uint8Array) {
+        return Array.from(this, (b) => b.toString(16).padStart(2, "0")).join("");
+      };
+    }
+    const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const worker = await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url");
     pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
     const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
     let text = "";
