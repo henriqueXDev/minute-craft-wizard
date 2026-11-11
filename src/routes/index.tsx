@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { gerarAta } from "@/lib/ata.functions";
 import { extrairTexto } from "@/lib/extract";
 import { isMidia, extrairAudio, transcreverPartes } from "@/lib/audio";
@@ -23,7 +23,13 @@ function tam(b: number) {
   return b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB` : `${(b / 1024).toFixed(0)} KB`;
 }
 
+// Cache em memória: evita repetir transcrição/geração para o mesmo arquivo e mesmas informações.
+const cacheTransc = new Map<string, string>();
+const cacheAta = new Map<string, Ata>();
+const chaveArquivo = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
+
 function Index() {
+  const rodando = useRef(false);
   const [file, setFile] = useState<File | null>(null);
   const [obs, setObs] = useState("");
   const [status, setStatus] = useState<"idle" | "lendo" | "audio" | "transcrevendo" | "gerando" | "pronto">("idle");
@@ -34,11 +40,15 @@ function Index() {
   const [drag, setDrag] = useState(false);
 
   async function converter() {
-    if (!file) return;
+    if (!file || rodando.current) return;
+    rodando.current = true;
     setErro(""); setAta(null); setTransc("");
     try {
-      let texto: string;
-      if (isMidia(file)) {
+      const kf = chaveArquivo(file);
+      let texto = cacheTransc.get(kf) ?? "";
+      if (texto) {
+        // já lido/transcrito antes
+      } else if (isMidia(file)) {
         setStatus("audio");
         const partes = await extrairAudio(file);
         setStatus("transcrevendo");
@@ -47,13 +57,20 @@ function Index() {
         setStatus("lendo");
         texto = await extrairTexto(file);
       }
+      cacheTransc.set(kf, texto);
       setTransc(texto);
+      const ka = `${kf}|${obs.trim()}`;
+      const salva = cacheAta.get(ka);
+      if (salva) { setAta(salva); setStatus("pronto"); return; }
       setStatus("gerando");
       const r = await gerarAta({ data: { texto, observacoes: obs } });
       if (r.erro || !r.ata) throw new Error(r.erro || "Falha ao gerar.");
+      cacheAta.set(ka, r.ata);
       setAta(r.ata); setStatus("pronto");
     } catch (e: any) {
       setErro(e?.message ?? "Erro inesperado."); setStatus("idle");
+    } finally {
+      rodando.current = false;
     }
   }
 
