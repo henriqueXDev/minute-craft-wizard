@@ -24,7 +24,7 @@ export const gerarAta = createServerFn({ method: "POST" })
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${groq}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "openai/gpt-oss-120b",
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: `${SYSTEM}\nResponda SOMENTE com um JSON válido seguindo exatamente este JSON Schema:\n${JSON.stringify(ataSchema)}` },
