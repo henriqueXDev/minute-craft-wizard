@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { ataSchema, type Ata } from "./ata-types";
+import { GROQ_PART_SIZE, type AtaResult } from "./ata-parts";
 
 const SYSTEM = `Você é secretário(a) responsável por redigir atas formais de reunião em português do Brasil, no padrão da Prefeitura (DTIS).
 A partir da transcrição recebida, preencha a ata:
@@ -17,9 +18,10 @@ export const gerarAta = createServerFn({ method: "POST" })
     if (!d?.texto || typeof d.texto !== "string" || d.texto.trim().length < 20) throw new Error("Transcrição vazia ou muito curta.");
     return { texto: d.texto.slice(0, 400_000), observacoes: (d.observacoes ?? "").slice(0, 4000) };
   })
-  .handler(async ({ data }): Promise<{ ata?: Ata; erro?: string }> => {
+  .handler(async ({ data }): Promise<AtaResult> => {
     const groq = process.env["GROQ_API_KEY"];
     if (groq) {
+      if (data.texto.length > GROQ_PART_SIZE) return { tamanhoParte: GROQ_PART_SIZE };
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${groq}` },
@@ -35,8 +37,14 @@ export const gerarAta = createServerFn({ method: "POST" })
       const body = await r.text();
       if (!r.ok) {
         console.error("Groq error", r.status, body);
-        if (r.status === 429) return { erro: "Limite gratuito do Groq atingido no momento. Aguarde um pouco e tente novamente." };
         let m = ""; try { m = JSON.parse(body)?.error?.message ?? ""; } catch {}
+        if (/request too large/i.test(m) && data.texto.length > 1000) {
+          return { tamanhoParte: Math.max(1000, Math.floor(data.texto.length / 2)) };
+        }
+        if (r.status === 429) {
+          const segundos = Number(r.headers.get("retry-after"));
+          return { erro: "Limite gratuito do Groq atingido. Tente novamente mais tarde.", aguardarMs: Math.max(65_000, Number.isFinite(segundos) ? segundos * 1000 : 0) };
+        }
         return { erro: m || `Falha ao gerar a ata (${r.status}).` };
       }
       try { return { ata: JSON.parse(JSON.parse(body).choices[0].message.content) as Ata }; }

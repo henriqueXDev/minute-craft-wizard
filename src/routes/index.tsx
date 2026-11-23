@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { gerarAta } from "@/lib/ata.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { gerarEmPartes } from "@/lib/ata-parts";
 import { extrairTexto } from "@/lib/extract";
 import { isMidia, extrairAudio, transcreverPartes } from "@/lib/audio";
 import type { Ata } from "@/lib/ata-types";
@@ -45,6 +47,7 @@ function carregarCache() {
 const chaveArquivo = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
 function Index() {
+  const gerarAtaFn = useServerFn(gerarAta);
   const rodando = useRef(false);
   const [salvos, setSalvos] = useState(0);
   useEffect(() => { carregarCache(); setSalvos(cacheAta.size + cacheTransc.size); }, []);
@@ -87,10 +90,10 @@ function Index() {
       const salva = cacheAta.get(ka);
       if (salva) { setAta(salva); setStatus("pronto"); return; }
       setStatus("gerando");
-      const r = await gerarAta({ data: { texto, observacoes: obs } });
-      if (r.erro || !r.ata) throw new Error(r.erro || "Falha ao gerar.");
-      cacheAta.set(ka, r.ata); salvarCache(); setSalvos(cacheAta.size + cacheTransc.size);
-      setAta(r.ata); setStatus("pronto");
+      setProg("Redigindo a ata…");
+      const gerada = await gerarEmPartes(texto, obs, (trecho, observacoes) => gerarAtaFn({ data: { texto: trecho, observacoes } }), setProg, cacheAta, salvarCache);
+      cacheAta.set(ka, gerada); salvarCache(); setSalvos(cacheAta.size + cacheTransc.size);
+      setAta(gerada); setStatus("pronto");
     } catch (e: any) {
       setErro(e?.message ?? "Erro inesperado."); setStatus("idle");
     } finally {
@@ -157,7 +160,7 @@ function Index() {
             <textarea className="field mt-1 h-24 resize-none" placeholder="Ex: ATA 04/2026, elaborada por Walayna Abreu, local MEET" value={obs} onChange={(e) => setObs(e.target.value)} />
           </div>
           <button className="btn-primary w-full" disabled={!file || busy || acima} onClick={converter}>
-            {status === "lendo" ? "Lendo arquivo…" : status === "audio" ? "Extraindo áudio…" : status === "transcrevendo" ? `Transcrevendo (${prog})…` : status === "gerando" ? "Redigindo a ata…" : "Gerar ata"}
+            {status === "lendo" ? "Lendo arquivo…" : status === "audio" ? "Extraindo áudio…" : status === "transcrevendo" ? `Transcrevendo (${prog})…` : status === "gerando" ? prog : "Gerar ata"}
           </button>
           <div className="rounded-sm border border-border bg-card p-3 text-xs text-muted-foreground">
             As atas e transcrições geradas ficam salvas neste dispositivo (neste navegador) para não gastar créditos ao repetir.
