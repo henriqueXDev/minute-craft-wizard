@@ -18,6 +18,30 @@ export const gerarAta = createServerFn({ method: "POST" })
     return { texto: d.texto.slice(0, 400_000), observacoes: (d.observacoes ?? "").slice(0, 4000) };
   })
   .handler(async ({ data }): Promise<{ ata?: Ata; erro?: string }> => {
+    const groq = process.env["GROQ_API_KEY"];
+    if (groq) {
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groq}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: `${SYSTEM}\nResponda SOMENTE com um JSON válido seguindo exatamente este JSON Schema:\n${JSON.stringify(ataSchema)}` },
+            { role: "user", content: `${data.observacoes ? `Observações do usuário: ${data.observacoes}\n\n` : ""}TRANSCRIÇÃO:\n${data.texto.slice(0, 300_000)}` },
+          ],
+        }),
+      });
+      const body = await r.text();
+      if (!r.ok) {
+        console.error("Groq error", r.status, body);
+        if (r.status === 429) return { erro: "Limite gratuito do Groq atingido no momento. Aguarde um pouco e tente novamente." };
+        let m = ""; try { m = JSON.parse(body)?.error?.message ?? ""; } catch {}
+        return { erro: m || `Falha ao gerar a ata (${r.status}).` };
+      }
+      try { return { ata: JSON.parse(JSON.parse(body).choices[0].message.content) as Ata }; }
+      catch { return { erro: "A IA não retornou uma ata válida. Tente novamente." }; }
+    }
     const key = process.env["LOVABLE_API_KEY"];
     if (!key) return { erro: "Chave de IA não configurada." };
 

@@ -7,13 +7,32 @@ export const Route = createFileRoute("/api/transcrever")({
     handlers: {
       POST: async ({ request }) => {
         const key = process.env["LOVABLE_API_KEY"];
-        if (!key) return err("Chave de IA não configurada.", 500);
+        const groq = process.env["GROQ_API_KEY"];
+        if (!key && !groq) return err("Chave de IA não configurada.", 500);
         const len = Number(request.headers.get("content-length") || 0);
         if (len > 25 * 1024 * 1024) return err("Parte de áudio grande demais.", 413);
         const form = await request.formData().catch(() => null);
         const file = form?.get("file");
         if (!(file instanceof File) || !file.size || file.size > 25 * 1024 * 1024) return err("Áudio inválido.", 400);
 
+        if (groq) {
+          const g = new FormData();
+          g.append("model", "whisper-large-v3-turbo");
+          g.append("file", new File([file], "audio.wav", { type: "audio/wav" }));
+          g.append("response_format", "json");
+          g.append("language", "pt");
+          const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+            method: "POST", headers: { Authorization: `Bearer ${groq}` }, body: g,
+          });
+          const b = await r.text();
+          if (!r.ok) {
+            console.error("Groq STT error", r.status, b);
+            if (r.status === 429) return err("Limite gratuito do Groq atingido. Aguarde alguns minutos e tente novamente.", 429);
+            let m = ""; try { m = JSON.parse(b)?.error?.message ?? ""; } catch {}
+            return err(m || `Falha na transcrição (${r.status}).`, r.status);
+          }
+          try { return Response.json({ texto: JSON.parse(b).text ?? "" }); } catch { return err("Resposta inválida da transcrição.", 502); }
+        }
         const fd = new FormData();
         fd.append("model", "openai/gpt-transcribe");
         fd.append("file", new File([file], "audio.wav", { type: "audio/wav" }));
